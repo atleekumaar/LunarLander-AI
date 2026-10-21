@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-10-22T00:50:38.372788",
+  "condition": "corrected",
+  "seed": 42,
+  "timesteps": 100000,
+  "cum_env_timesteps": 106496,
+  "elapsed_seconds": 226.62,
+  "beta": 1.0,
+  "gamma": 0.99,
+  "resumed_from": null,
+  "saved_model_path": "models/experiments\\ppo_shaping_corrected_seed42.zip",
+  "log_dir": "logs/experiments\\corrected_seed42"
+}

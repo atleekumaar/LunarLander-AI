@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-10-22T00:46:18.098132",
+  "condition": "naive",
+  "seed": 42,
+  "timesteps": 100000,
+  "cum_env_timesteps": 106496,
+  "elapsed_seconds": 201.11,
+  "beta": null,
+  "gamma": 0.99,
+  "resumed_from": null,
+  "saved_model_path": "models/experiments\\ppo_shaping_naive_seed42.zip",
+  "log_dir": "logs/experiments\\naive_seed42"
+}
