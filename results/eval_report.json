@@ -1,0 +1,76 @@
+{
+  "model_path": "models/ppo_lunarlander_baseline.zip",
+  "num_episodes": 5,
+  "deterministic": true,
+  "seed": 42,
+  "mean_return": -693.32,
+  "std_return": 104.27,
+  "median_return": -677.36,
+  "min_return": -862.5,
+  "max_return": -536.71,
+  "mean_length": 235.8,
+  "successful_landings": 0,
+  "crashes": 5,
+  "truncations": 0,
+  "success_rate": 0.0,
+  "crash_rate": 100.0,
+  "truncation_rate": 0.0,
+  "is_solved": false,
+  "episodes": [
+    {
+      "episode": 1,
+      "seed": 1042,
+      "return": -536.71,
+      "length": 322,
+      "outcome": "CRASH",
+      "final_pos_x": -1.001,
+      "final_pos_y": 3.84,
+      "left_leg_contact": false,
+      "right_leg_contact": false
+    },
+    {
+      "episode": 2,
+      "seed": 2042,
+      "return": -677.36,
+      "length": 263,
+      "outcome": "CRASH",
+      "final_pos_x": -1.001,
+      "final_pos_y": 5.04,
+      "left_leg_contact": false,
+      "right_leg_contact": false
+    },
+    {
+      "episode": 3,
+      "seed": 3042,
+      "return": -716.79,
+      "length": 267,
+      "outcome": "CRASH",
+      "final_pos_x": -1.005,
+      "final_pos_y": 5.339,
+      "left_leg_contact": false,
+      "right_leg_contact": false
+    },
+    {
+      "episode": 4,
+      "seed": 4042,
+      "return": -673.25,
+      "length": 159,
+      "outcome": "CRASH",
+      "final_pos_x": -1.008,
+      "final_pos_y": 5.134,
+      "left_leg_contact": false,
+      "right_leg_contact": false
+    },
+    {
+      "episode": 5,
+      "seed": 5042,
+      "return": -862.5,
+      "length": 168,
+      "outcome": "CRASH",
+      "final_pos_x": -1.005,
+      "final_pos_y": 6.285,
+      "left_leg_contact": false,
+      "right_leg_contact": false
+    }
+  ]
+}

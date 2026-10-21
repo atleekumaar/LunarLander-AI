@@ -1,0 +1,31 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual environment
+.venv/
+env/
+venv/
+ENV/
+
+# Model checkpoints (ignore trained weights by default, keep folder via .gitkeep)
+models/*.zip
+!models/.gitkeep
+
+# Training logs & TensorBoard data
+logs/*
+!logs/.gitkeep
+
+# Media and evaluation results
+results/*.png
+results/*.mp4
+results/*.gif
+!results/.gitkeep
+
+# OS / IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

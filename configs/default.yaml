@@ -1,0 +1,40 @@
+# Default Configuration for LunarLander AI (PPO Baseline)
+
+environment:
+  env_id: "LunarLander-v3"
+  seed: 42
+
+training:
+  total_timesteps: 100000
+  seed: 42
+  policy: "MlpPolicy"
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  net_arch:
+    pi: [64, 64]
+    vf: [64, 64]
+
+evaluation:
+  eval_episodes: 20
+  deterministic: true
+  seed: 42
+  render: false
+
+paths:
+  model_dir: "models"
+  log_dir: "logs"
+  results_dir: "results"
+  model_filename: "ppo_lunarlander_baseline.zip"
+
+video:
+  num_episodes: 2
+  max_steps: 1000
+  fps: 50
