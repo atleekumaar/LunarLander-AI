@@ -61,47 +61,56 @@ RL_CONCEPTS_EXPLANATION = """
 
 
 def load_monitor_data(log_path: str) -> Optional[pd.DataFrame]:
-    """Load and parse Monitor CSV file produced by Stable-Baselines3.
+    """Load and parse Monitor CSV file(s) produced by Stable-Baselines3.
+
+    Supports single-env (monitor.csv) and multi-env (monitor_0.csv, monitor_1.csv, etc.).
 
     Args:
         log_path: Path to monitor CSV file or directory containing it.
 
     Returns:
-        Optional[pd.DataFrame]: Parsed dataframe with columns ['r', 'l', 't'],
+        Optional[pd.DataFrame]: Parsed dataframe with columns ['r', 'l', 't', 'timesteps', 'episode'],
         or None if no valid monitor data is found.
     """
-    csv_file = None
+    csv_files: List[str] = []
     if os.path.isdir(log_path):
-        candidates = glob.glob(os.path.join(log_path, "*.monitor.csv")) + glob.glob(
-            os.path.join(log_path, "monitor.csv")
+        candidates = (
+            glob.glob(os.path.join(log_path, "*.monitor.csv"))
+            + glob.glob(os.path.join(log_path, "monitor*.csv"))
         )
-        if candidates:
-            csv_file = candidates[0]
+        csv_files = sorted(list(set(candidates)))
     elif os.path.isfile(log_path):
-        csv_file = log_path
+        csv_files = [log_path]
 
-    if not csv_file or not os.path.exists(csv_file):
+    if not csv_files:
         return None
 
-    try:
-        # SB3 Monitor CSV has 1 line of JSON comment header followed by header row: r,l,t
-        df = pd.read_csv(csv_file, skiprows=1)
-        if "r" not in df.columns or "l" not in df.columns:
-            return None
-        # Clean potential empty or non-numeric rows
-        df["r"] = pd.to_numeric(df["r"], errors="coerce")
-        df["l"] = pd.to_numeric(df["l"], errors="coerce")
-        df["t"] = pd.to_numeric(df["t"], errors="coerce")
-        df = df.dropna().reset_index(drop=True)
-        if len(df) == 0:
-            return None
-        # Add cumulative timesteps
-        df["timesteps"] = df["l"].cumsum()
-        df["episode"] = np.arange(1, len(df) + 1)
-        return df
-    except Exception as e:
-        print(f"Error reading monitor file {csv_file}: {e}")
+    dfs = []
+    for f in csv_files:
+        try:
+            # SB3 Monitor CSV has 1 line of JSON comment header followed by header row: r,l,t
+            sub_df = pd.read_csv(f, skiprows=1)
+            if "r" in sub_df.columns and "l" in sub_df.columns:
+                sub_df["r"] = pd.to_numeric(sub_df["r"], errors="coerce")
+                sub_df["l"] = pd.to_numeric(sub_df["l"], errors="coerce")
+                sub_df["t"] = pd.to_numeric(sub_df["t"], errors="coerce")
+                sub_df = sub_df.dropna().reset_index(drop=True)
+                if len(sub_df) > 0:
+                    dfs.append(sub_df)
+        except Exception as e:
+            print(f"Warning: could not read {f}: {e}")
+
+    if not dfs:
         return None
+
+    # Merge all monitor data and order by timestamp t
+    df = pd.concat(dfs, ignore_index=True)
+    if "t" in df.columns:
+        df = df.sort_values(by="t").reset_index(drop=True)
+
+    df["timesteps"] = df["l"].cumsum()
+    df["episode"] = np.arange(1, len(df) + 1)
+    return df
 
 
 def evaluate_learning_trend(returns: np.ndarray) -> Tuple[str, str]:
@@ -239,6 +248,7 @@ def plot_training_curves(
 def analyze_training_logs(
     log_dir: str = "logs",
     results_dir: str = "results",
+    plot_filename: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Analyze SB3 training logs and output trend evaluation and plots.
 
@@ -278,7 +288,8 @@ def analyze_training_logs(
     print(f"Decision Rule Rationale:  {reason}")
     print("=" * 70)
 
-    plot_file = os.path.join(results_dir, "training_curves.png")
+    plot_name = plot_filename or "training_curves.png"
+    plot_file = os.path.join(results_dir, plot_name)
     plot_training_curves(df, output_image_path=plot_file)
 
     return {
@@ -310,9 +321,19 @@ def parse_args() -> argparse.Namespace:
         default="results",
         help="Directory where plots will be saved (default: results).",
     )
+    parser.add_argument(
+        "--plot_filename",
+        type=str,
+        default=None,
+        help="Custom filename for the output plot (default: training_curves.png).",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    analyze_training_logs(log_dir=args.log_dir, results_dir=args.results_dir)
+    analyze_training_logs(
+        log_dir=args.log_dir,
+        results_dir=args.results_dir,
+        plot_filename=args.plot_filename,
+    )

@@ -76,26 +76,32 @@ def create_vectorized_env(
     log_dir: str,
     seed: int,
     monitor_filename: Optional[str] = None,
+    n_envs: int = 1,
 ) -> DummyVecEnv:
-    """Create a single-env vectorized environment with SB3 Monitor wrapper.
+    """Create a single or multi-env vectorized environment with SB3 Monitor wrapper.
 
     Args:
         env_id: Gymnasium environment name.
         log_dir: Directory where Monitor CSV logs should be stored.
         seed: Random seed for environment initialization.
         monitor_filename: Optional custom file prefix for the monitor log.
+        n_envs: Number of parallel environments (default: 1).
 
     Returns:
         DummyVecEnv: Vectorized environment wrapped for SB3 logging.
     """
     os.makedirs(log_dir, exist_ok=True)
-    filename = os.path.join(log_dir, monitor_filename or "monitor")
+    base_name = monitor_filename or "monitor"
 
-    def _init() -> gym.Env:
-        env = make_lunar_lander_env(env_id=env_id, render_mode=None, seed=seed)
-        return Monitor(env, filename=filename)
+    def _make_env(rank: int):
+        def _init() -> gym.Env:
+            env = make_lunar_lander_env(env_id=env_id, render_mode=None, seed=seed + rank * 100)
+            target_name = base_name if n_envs == 1 else f"{base_name}_{rank}"
+            m_path = os.path.join(log_dir, target_name)
+            return Monitor(env, filename=m_path)
+        return _init
 
-    return DummyVecEnv([_init])
+    return DummyVecEnv([_make_env(i) for i in range(n_envs)])
 
 
 def train_baseline_agent(
@@ -105,6 +111,8 @@ def train_baseline_agent(
     resume_from: Optional[str] = None,
     model_dir_override: Optional[str] = None,
     log_dir_override: Optional[str] = None,
+    model_filename_override: Optional[str] = None,
+    n_envs_override: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Train or resume a PPO baseline agent on LunarLander-v3.
 
@@ -115,6 +123,8 @@ def train_baseline_agent(
         resume_from: Optional path to a saved model checkpoint to resume.
         model_dir_override: Optional override for saving model artifacts.
         log_dir_override: Optional override for saving training logs.
+        model_filename_override: Optional override for model checkpoint filename.
+        n_envs_override: Optional override for number of parallel environments.
 
     Returns:
         Dict[str, Any]: Training run metadata and artifact locations.
@@ -131,10 +141,23 @@ def train_baseline_agent(
     env_id = config["environment"].get("env_id", "LunarLander-v3")
     model_dir = model_dir_override or config["paths"].get("model_dir", "models")
     log_dir = log_dir_override or config["paths"].get("log_dir", "logs")
-    model_filename = config["paths"].get("model_filename", "ppo_lunarlander_baseline.zip")
+    model_filename = (
+        model_filename_override
+        or config["paths"].get("model_filename", "ppo_lunarlander_baseline.zip")
+    )
+    n_envs = (
+        n_envs_override
+        if n_envs_override is not None
+        else config["training"].get("n_envs", 1)
+    )
 
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
+
+    # Save a configuration snapshot in log_dir for complete provenance
+    snapshot_path = os.path.join(log_dir, "config_snapshot.yaml")
+    with open(snapshot_path, "w", encoding="utf-8") as f:
+        yaml.dump(config, f, default_flow_style=False)
 
     set_global_seeds(seed)
 
@@ -148,7 +171,7 @@ def train_baseline_agent(
     print(f"Log Save Directory:   {log_dir}")
 
     # Build vectorized environment
-    vec_env = create_vectorized_env(env_id=env_id, log_dir=log_dir, seed=seed)
+    vec_env = create_vectorized_env(env_id=env_id, log_dir=log_dir, seed=seed, n_envs=n_envs)
 
     # Setup TensorBoard if installed
     tb_available = check_tensorboard_available()
@@ -183,18 +206,24 @@ def train_baseline_agent(
     print("\nPPO Hyperparameters:")
     for k, v in ppo_params.items():
         print(f"  {k:<16}: {v}")
+    print(f"  Parallel Envs:    {n_envs}")
     print(f"  Policy Network:   MLP [Input(8) -> Dense(64) -> Dense(64) -> Actor(4)/Critic(1)]")
 
     # Explicit differentiation between fresh training and resuming
     if resume_from:
         if not os.path.exists(resume_from):
             raise FileNotFoundError(f"Checkpoint for resume not found at: {resume_from}")
-        print(f"\n[RESUME MODE] Loading existing model weights from: {resume_from}")
+        print(f"\n[RESUME MODE] Loading existing model checkpoint from: {resume_from}")
         model = PPO.load(
             resume_from,
             env=vec_env,
             tensorboard_log=tb_log,
         )
+        starting_timesteps = model.num_timesteps
+        optimizer_restored = hasattr(model.policy, "optimizer") and model.policy.optimizer is not None
+        opt_keys_count = len(model.policy.optimizer.state_dict().get("state", {})) if optimizer_restored else 0
+        print(f"  [CHECK] Restored starting environment timesteps: {starting_timesteps:,}")
+        print(f"  [CHECK] Optimizer state restored: {optimizer_restored} ({opt_keys_count} parameter state entries)")
         reset_num_timesteps = False
     else:
         print("\n[FRESH START] Initializing brand new PPO agent with random weights.")
@@ -235,32 +264,34 @@ def train_baseline_agent(
         "env_id": env_id,
         "seed": seed,
         "total_timesteps": total_timesteps,
+        "cum_env_timesteps": model.num_timesteps,
         "elapsed_seconds": round(elapsed_time, 2),
         "saved_model_path": save_path,
         "hyperparameters": ppo_params,
         "net_arch": net_arch,
+        "n_envs": n_envs,
         "resumed_from": resume_from,
     }
-    meta_path = os.path.join(model_dir, "last_run_meta.json")
+    stem = Path(model_filename).stem
+    meta_path = os.path.join(model_dir, f"{stem}_meta.json")
+    last_meta_path = os.path.join(model_dir, "last_run_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+    with open(last_meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
     print("\n" + "=" * 70)
     print("                    TRAINING COMPLETE")
     print("=" * 70)
     print(f"Training Duration:     {minutes}m {seconds:.2f}s ({elapsed_time:.2f} seconds)")
-    print(f"Total Timesteps:       {total_timesteps:,}")
+    print(f"Run Timesteps Added:   {total_timesteps:,}")
+    print(f"Total Cumulative Steps:{model.num_timesteps:,}")
     print(f"Saved Model File:      {save_path}")
     print(f"Saved Run Metadata:    {meta_path}")
-    print(f"Monitor CSV Log File:  {os.path.join(log_dir, 'monitor.csv')}")
+    print(f"Log Directory:         {log_dir}")
     if tb_available:
         print(f"TensorBoard Event Dir: {log_dir}")
         print("  View logs with: tensorboard --logdir logs")
-    print("\n[NOTE ON PERFORMANCE EXPECTATION]")
-    print("  A 100,000 timestep run serves as a functional baseline and smoke test.")
-    print("  LunarLander-v3 is typically considered solved at an average return of >= 200,")
-    print("  which usually requires 500,000 to 1,000,000 timesteps of training.")
-    print("  To train for longer: python src/train_baseline.py --timesteps 500000")
     print("=" * 70)
 
     return metadata
@@ -307,6 +338,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Directory to save Monitor and TensorBoard logs (default: logs).",
     )
+    parser.add_argument(
+        "--model_filename",
+        type=str,
+        default=None,
+        help="Filename for the saved model checkpoint (e.g. ppo_lunarlander_320k_resumed.zip).",
+    )
+    parser.add_argument(
+        "--n_envs",
+        type=int,
+        default=None,
+        help="Number of parallel environments for rollout collection (default: 1).",
+    )
     return parser.parse_args()
 
 
@@ -319,4 +362,6 @@ if __name__ == "__main__":
         resume_from=args.resume_from,
         model_dir_override=args.model_dir,
         log_dir_override=args.log_dir,
+        model_filename_override=args.model_filename,
+        n_envs_override=args.n_envs,
     )

@@ -1,0 +1,48 @@
+{
+  "evaluation_protocol": {
+    "num_episodes": 20,
+    "deterministic": true,
+    "base_seed": 42
+  },
+  "models": {
+    "baseline_20k": {
+      "checkpoint": "models/ppo_lunarlander_baseline.zip",
+      "mean_return": -731.84,
+      "std_return": 172.97,
+      "median_return": -738.12,
+      "min_return": -941.02,
+      "max_return": -313.82,
+      "mean_length": 217.6,
+      "successful_landings": 0,
+      "crashes": 20,
+      "truncations": 0,
+      "success_rate_pct": 0.0,
+      "crash_rate_pct": 100.0,
+      "truncation_rate_pct": 0.0,
+      "is_solved": false
+    },
+    "stronger_320k": {
+      "checkpoint": "models/ppo_lunarlander_320k_resumed.zip",
+      "mean_return": 85.78,
+      "std_return": 104.06,
+      "median_return": 132.72,
+      "min_return": -127.51,
+      "max_return": 182.95,
+      "mean_length": 720.1,
+      "successful_landings": 14,
+      "crashes": 4,
+      "truncations": 2,
+      "success_rate_pct": 70.0,
+      "crash_rate_pct": 20.0,
+      "truncation_rate_pct": 10.0,
+      "is_solved": false
+    }
+  },
+  "deltas": {
+    "mean_return_delta": 817.62,
+    "median_return_delta": 870.84,
+    "success_rate_delta_pct": 70.0,
+    "crash_rate_delta_pct": -80.0,
+    "mean_length_delta": 502.5
+  }
+}

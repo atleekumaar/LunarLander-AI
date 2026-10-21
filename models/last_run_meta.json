@@ -1,10 +1,11 @@
 {
-  "timestamp": "2026-10-21T22:43:15.536776",
+  "timestamp": "2026-10-21T23:29:40.395355",
   "env_id": "LunarLander-v3",
   "seed": 42,
-  "total_timesteps": 20000,
-  "elapsed_seconds": 112.21,
-  "saved_model_path": "models\\ppo_lunarlander_baseline.zip",
+  "total_timesteps": 300000,
+  "cum_env_timesteps": 323584,
+  "elapsed_seconds": 871.33,
+  "saved_model_path": "models\\ppo_lunarlander_320k_resumed.zip",
   "hyperparameters": {
     "learning_rate": 0.0003,
     "n_steps": 2048,
@@ -27,5 +28,6 @@
       64
     ]
   },
-  "resumed_from": null
+  "n_envs": 4,
+  "resumed_from": "models/ppo_lunarlander_baseline.zip"
 }

@@ -31,16 +31,16 @@ def classify_episode_outcome(
     total_reward: float,
     last_reward: float,
     final_obs: np.ndarray,
+    lander_awake: Optional[bool] = None,
+    game_over: Optional[bool] = None,
 ) -> str:
     """Classify episode outcome based on physical landing indicators and termination.
 
-    In LunarLander-v3:
-      - A crash ends the episode with `terminated=True` and a -100 penalty.
-      - A successful landing ends with `terminated=True`, +100 bonus for coming to rest,
-        both legs firmly touching the ground (final_obs[6] == 1.0 and final_obs[7] == 1.0),
-        and small linear and angular velocities.
-      - A truncation happens when the step limit (typically 1,000 steps) is reached
-        without the lander coming to rest or crashing.
+    In Gymnasium LunarLander-v3:
+      - A crash ends the episode with `game_over=True`, `terminated=True`, and a -100 penalty.
+      - A successful landing ends with `lander.awake=False` (came to rest safely on ground),
+        `terminated=True`, +100 terminal bonus, and both legs in contact (final_obs[6]==1 and final_obs[7]==1).
+      - A truncation happens when the step limit (1,000 steps) is reached before crashing or resting.
 
     Important: A positive cumulative reward alone is NEVER treated as proof of landing.
     Hovering or drifting towards the center can yield positive reward without landing.
@@ -56,14 +56,19 @@ def classify_episode_outcome(
         return "TRUNCATED"
 
     if terminated:
-        # A true landing requires both legs touching, centered near pad, and terminal bonus
-        # or overall high positive reward. In Gym Box2D LunarLander, terminal landing reward adds +100.
+        # Check ground-truth physics engine state if available
+        if lander_awake is False and (game_over is False or game_over is None):
+            return "SUCCESSFUL_LANDING"
+        if game_over is True:
+            return "CRASH"
+
+        # Observation and reward telemetry fallback
+        # Landing requires both legs touching, upright orientation, and positive terminal arrival
         if both_legs_touching and (last_reward >= 50.0 or total_reward >= 150.0):
             return "SUCCESSFUL_LANDING"
         else:
             return "CRASH"
 
-    # Fallback if neither terminated nor truncated flag triggered
     return "TRUNCATED"
 
 
@@ -128,12 +133,19 @@ def evaluate_ppo_agent(
                 last_reward = float(reward)
                 ep_length += 1
 
+            unwrapped = getattr(env, "unwrapped", env)
+            lander = getattr(unwrapped, "lander", None)
+            lander_awake = getattr(lander, "awake", None)
+            game_over = getattr(unwrapped, "game_over", None)
+
             outcome = classify_episode_outcome(
                 terminated=terminated,
                 truncated=truncated,
                 total_reward=ep_reward,
                 last_reward=last_reward,
                 final_obs=obs,
+                lander_awake=lander_awake,
+                game_over=game_over,
             )
 
             episode_rewards.append(ep_reward)
